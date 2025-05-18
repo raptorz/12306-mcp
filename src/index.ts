@@ -495,10 +495,12 @@ function extractDWFlags(dw_flag_str: string): string[] {
   return result;
 }
 
-function checkDate(date: string): boolean { 
-  const shangHaiTimeZone = 'Asia/Shanghai';
-  const nowInShanghai = toZonedTime(new Date(), shangHaiTimeZone).setHours(0, 0, 0, 0);
-  const inputInShanghai = toZonedTime(new Date(date), shangHaiTimeZone).setHours(0, 0, 0, 0);
+function checkDate(date: string): boolean {
+  const timeZone = 'Asia/Shanghai';
+  const nowInShanghai = toZonedTime(new Date(), timeZone);
+  nowInShanghai.setHours(0, 0, 0, 0);
+  const inputInShanghai = toZonedTime(new Date(date), timeZone);
+  inputInShanghai.setHours(0, 0, 0, 0);
   return inputInShanghai >= nowInShanghai;
 }
 
@@ -599,46 +601,55 @@ server.tool(
 );
 
 server.tool(
-  'get-station-code-of-city',
-  '通过中文城市名查询代表该城市的 `station_code`，结果是唯一的。此接口主要用于在用户提供**城市名**作为出发地或到达地时，为接口准备 `station_code` 参数。',
+  'get-station-code-of-citys',
+  '通过中文城市名查询代表该城市的 `station_code`。此接口主要用于在用户提供**城市名**作为出发地或到达地时，为接口准备 `station_code` 参数。',
   {
-    city: z.string().describe('中文城市名称，例如："北京", "上海"'),
+    citys: z
+      .string()
+      .describe(
+        '要查询的城市，比如"北京"。若要查询多个城市，请用|分割，比如"北京|上海"。'
+      ),
   },
-  async ({ city }) => {
-    if (!(city in CITY_CODES)) {
-      return {
-        content: [{ type: 'text', text: 'Error: City not found. ' }],
-      };
+  async ({ citys }) => {
+    let result: Record<string, object> = {};
+    for (const city of citys.split('|')) {
+      console.error(city);
+      if (!(city in CITY_CODES)) {
+        result[city] = { error: '未检索到城市。' };
+      } else {
+        result[city] = CITY_CODES[city];
+      }
     }
     return {
-      content: [{ type: 'text', text: JSON.stringify(CITY_CODES[city]) }],
+      content: [{ type: 'text', text: JSON.stringify(result) }],
     };
   }
 );
 
 server.tool(
-  'get-station-code-by-name',
-  '通过具体的中文车站名查询其 `station_code` 和车站名，结果是唯一的。此接口主要用于在用户提供**具体车站名**作为出发地或到达地时，为接口准备 `station_code` 参数。',
+  'get-station-code-by-names',
+  '通过具体的中文车站名查询其 `station_code` 和车站名。此接口主要用于在用户提供**具体车站名**作为出发地或到达地时，为接口准备 `station_code` 参数。',
   {
-    stationName: z
+    stationNames: z
       .string()
       .describe(
-        '具体的中文车站名称，例如："北京南", "上海虹桥" (如果用户输入为“上海南站”，就使用“上海南”)'
+        '具体的中文车站名称，例如："北京南", "上海虹桥"。若要查询多个站点，请用|分割，比如"北京南|上海虹桥"。'
       ),
   },
-  async ({ stationName }) => {
-    stationName = stationName.endsWith('站')
-      ? stationName.substring(0, -1)
-      : stationName;
-    if (!(stationName in NAME_STATIONS)) {
-      return {
-        content: [{ type: 'text', text: 'Error: Station not found. ' }],
-      };
+  async ({ stationNames }) => {
+    let result: Record<string, object> = {};
+    for (let stationName of stationNames.split('|')) {
+      stationName = stationName.endsWith('站')
+        ? stationName.substring(0, -1)
+        : stationName;
+      if (!(stationName in NAME_STATIONS)) {
+        result[stationName] = { error: '未检索到城市。' };
+      } else {
+        result[stationName] = NAME_STATIONS[stationName];
+      }
     }
     return {
-      content: [
-        { type: 'text', text: JSON.stringify(NAME_STATIONS[stationName]) },
-      ],
+      content: [{ type: 'text', text: JSON.stringify(result) }],
     };
   }
 );
@@ -692,14 +703,19 @@ server.tool(
       .optional()
       .default('')
       .describe(
-        '车次筛选条件，默认为空，即不进行筛选。例如用户说“高铁票”，则应使用 "G"。可选标志：[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'
+        '车次筛选条件，默认为空，即不筛选。例如用户说“高铁票”，则应使用 "G"。可选标志：[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'
       ),
   },
   async ({ date, fromStation, toStation, trainFilterFlags }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
       return {
-        content: [{type: 'text',text: 'Error: The date cannot be earlier than today.'}],
+        content: [
+          {
+            type: 'text',
+            text: 'Error: The date cannot be earlier than today.',
+          },
+        ],
       };
     }
     if (
@@ -788,18 +804,29 @@ server.tool(
   'get-interline-tickets',
   '查询12306中转余票信息。尚且只支持查询前十条。',
   {
-    date: z.string().length(10).describe('查询日期，格式为 "yyyy-MM-dd"。如果用户提供的是相对日期（如“明天”），请务必先调用 `get-current-date` 接口获取当前日期，并计算出目标日期。'),
+    date: z
+      .string()
+      .length(10)
+      .describe(
+        '查询日期，格式为 "yyyy-MM-dd"。如果用户提供的是相对日期（如“明天”），请务必先调用 `get-current-date` 接口获取当前日期，并计算出目标日期。'
+      ),
     fromStation: z
       .string()
-      .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
+      .describe(
+        '出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'
+      ),
     toStation: z
       .string()
-      .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
+      .describe(
+        '出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'
+      ),
     middleStation: z
       .string()
       .optional()
       .default('')
-      .describe('中转地的 `station_code` ，可选。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
+      .describe(
+        '中转地的 `station_code` ，可选。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'
+      ),
     showWZ: z
       .boolean()
       .optional()
@@ -826,7 +853,12 @@ server.tool(
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
       return {
-        content: [{type: 'text',text: 'Error: The date cannot be earlier than today.'}],
+        content: [
+          {
+            type: 'text',
+            text: 'Error: The date cannot be earlier than today.',
+          },
+        ],
       };
     }
     if (
@@ -911,13 +943,12 @@ server.tool(
 interface RouteQueryResponse extends QueryResponse {
   httpstatus: string;
   data: {
-    data: RouteStationData[]
+    data: RouteStationData[];
   };
   messages: [];
   validateMessages: object;
   validateMessagesShowId: string;
 }
-
 
 server.tool(
   'get-train-route-stations',
@@ -977,9 +1008,9 @@ server.tool(
       };
     }
     const routeStationsInfo = parseRouteStationsInfo(queryResponse.data.data);
-    if( routeStationsInfo.length == 0){
-       return {
-        content: [{ type: 'text', text: "未查询到相关车次信息。" }],
+    if (routeStationsInfo.length == 0) {
+      return {
+        content: [{ type: 'text', text: '未查询到相关车次信息。' }],
       };
     }
     return {
@@ -1028,4 +1059,3 @@ main().catch((error) => {
   console.error('Fatal error in main():', error);
   process.exit(1);
 });
-
