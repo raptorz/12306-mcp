@@ -786,18 +786,18 @@ server.tool(
   'get-interline-tickets',
   '查询12306中转余票信息。尚且只支持查询前十条。',
   {
-    date: z.string().length(10).describe('日期( 格式: yyyy-mm-dd )'),
+    date: z.string().length(10).describe('查询日期，格式为 "yyyy-MM-dd"。如果用户提供的是相对日期（如“明天”），请务必先调用 `get-current-date` 接口获取当前日期，并计算出目标日期。'),
     fromStation: z
       .string()
-      .describe('出发车站的station_code 或 出发城市的station_code'),
+      .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     toStation: z
       .string()
-      .describe('到达车站的station_code 或 出发城市的station_code'),
+      .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     middleStation: z
       .string()
       .optional()
       .default('')
-      .describe('中转车站的station_code 或 中转城市的station_code，可选。'),
+      .describe('中转地的 `station_code` ，可选。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     showWZ: z
       .boolean()
       .optional()
