@@ -107,6 +107,7 @@ const DW_FLAGS = [
     '老年优惠',
 ];
 const TRAIN_FILTERS = {
+    //G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)
     G: (ticketInfo) => {
         return ticketInfo.start_train_code.startsWith('G') ||
             ticketInfo.start_train_code.startsWith('C')
@@ -414,6 +415,12 @@ function extractDWFlags(dw_flag_str) {
     }
     return result;
 }
+function checkDate(date) {
+    const shangHaiTimeZone = 'Asia/Shanghai';
+    const nowInShanghai = toZonedTime(new Date(), shangHaiTimeZone).setHours(0, 0, 0, 0);
+    const inputInShanghai = toZonedTime(new Date(date), shangHaiTimeZone).setHours(0, 0, 0, 0);
+    return inputInShanghai >= nowInShanghai;
+}
 async function make12306Request(url, scheme = new URLSearchParams(), headers = {}) {
     try {
         const response = await axios.get(url + '?' + scheme.toString(), {
@@ -540,14 +547,9 @@ server.tool('get-tickets', '查询12306余票信息。', {
         .describe('车次筛选条件，默认为空，即不进行筛选。例如用户说“高铁票”，则应使用 "G"。可选标志：[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'),
 }, async ({ date, fromStation, toStation, trainFilterFlags }) => {
     // 检查日期是否早于当前日期
-    if (new Date(date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
+    if (!checkDate(date)) {
         return {
-            content: [
-                {
-                    type: 'text',
-                    text: 'Error: The date cannot be earlier than today.',
-                },
-            ],
+            content: [{ type: 'text', text: 'Error: The date cannot be earlier than today.' }],
         };
     }
     if (!Object.keys(STATIONS).includes(fromStation) ||
@@ -606,18 +608,18 @@ server.tool('get-tickets', '查询12306余票信息。', {
 // purpose_codes=00&
 // channel=E  ?channel是什么用的
 server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只支持查询前十条。', {
-    date: z.string().length(10).describe('日期( 格式: yyyy-mm-dd )'),
+    date: z.string().length(10).describe('查询日期，格式为 "yyyy-MM-dd"。如果用户提供的是相对日期（如“明天”），请务必先调用 `get-current-date` 接口获取当前日期，并计算出目标日期。'),
     fromStation: z
         .string()
-        .describe('出发车站的station_code 或 出发城市的station_code'),
+        .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     toStation: z
         .string()
-        .describe('到达车站的station_code 或 出发城市的station_code'),
+        .describe('出发地的 `station_code` 。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     middleStation: z
         .string()
         .optional()
         .default('')
-        .describe('中转车站的station_code 或 中转城市的station_code，可选。'),
+        .describe('中转地的 `station_code` ，可选。必须是通过 `get-station-code-by-name` 或 `get-station-code-of-city` 接口查询得到的编码，严禁直接使用中文地名。'),
     showWZ: z
         .boolean()
         .optional()
@@ -632,14 +634,9 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         .describe('车次筛选条件，默认为空。从以下标志中选取多个条件组合[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'),
 }, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, }) => {
     // 检查日期是否早于当前日期
-    if (new Date(date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
+    if (!checkDate(date)) {
         return {
-            content: [
-                {
-                    type: 'text',
-                    text: 'Error: The date cannot be earlier than today.',
-                },
-            ],
+            content: [{ type: 'text', text: 'Error: The date cannot be earlier than today.' }],
         };
     }
     if (!Object.keys(STATIONS).includes(fromStation) ||
@@ -711,8 +708,10 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         ],
     };
 });
-server.tool('get-train-route-stations', '查询列车途径车站信息。', {
-    trainNo: z.string().describe('实际车次编号train_no，例如240000G10336.'),
+server.tool('get-train-route-stations', '查询特定列车车次在指定区间内的途径车站、到站时间、出发时间及停留时间等详细经停信息。当用户询问某趟具体列车的经停站时使用此接口。', {
+    trainNo: z
+        .string()
+        .describe('要查询的实际车次编号 `train_no`，例如 "240000G10336"，而非"G1033"。此编号通常可以从 `get-tickets` 的查询结果中获取，或者由用户直接提供。'),
     fromStationTelecode: z
         .string()
         .describe('该列车行程的**出发站**的 `station_telecode` (3位字母编码`)。通常来自 `get-tickets` 结果中的 `telecode` 字段，或者通过 `get-station-code-by-name` 得到。'),
@@ -738,15 +737,19 @@ server.tool('get-train-route-stations', '查询列车途径车站信息。', {
         };
     }
     const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
-    if (queryResponse == null) {
+    if (queryResponse == null || queryResponse.data == undefined) {
         return {
             content: [
                 { type: 'text', text: 'Error: get train route stations failed. ' },
             ],
         };
     }
-    const routeStationsData = parseRouteStationsData(queryResponse.data.data);
-    const routeStationsInfo = parseRouteStationsInfo(routeStationsData);
+    const routeStationsInfo = parseRouteStationsInfo(queryResponse.data.data);
+    if (routeStationsInfo.length == 0) {
+        return {
+            content: [{ type: 'text', text: "未查询到相关车次信息。" }],
+        };
+    }
     return {
         content: [{ type: 'text', text: JSON.stringify(routeStationsInfo) }],
     };
@@ -786,4 +789,3 @@ main().catch((error) => {
     console.error('Fatal error in main():', error);
     process.exit(1);
 });
-// Route部分也要修改

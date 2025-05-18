@@ -495,6 +495,13 @@ function extractDWFlags(dw_flag_str: string): string[] {
   return result;
 }
 
+function checkDate(date: string): boolean { 
+  const shangHaiTimeZone = 'Asia/Shanghai';
+  const nowInShanghai = toZonedTime(new Date(), shangHaiTimeZone).setHours(0, 0, 0, 0);
+  const inputInShanghai = toZonedTime(new Date(date), shangHaiTimeZone).setHours(0, 0, 0, 0);
+  return inputInShanghai >= nowInShanghai;
+}
+
 async function make12306Request<T>(
   url: string | URL,
   scheme: URLSearchParams = new URLSearchParams(),
@@ -690,14 +697,9 @@ server.tool(
   },
   async ({ date, fromStation, toStation, trainFilterFlags }) => {
     // 检查日期是否早于当前日期
-    if (new Date(date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
+    if (!checkDate(date)) {
       return {
-        content: [
-          {
-            type: 'text',
-            text: 'Error: The date cannot be earlier than today.',
-          },
-        ],
+        content: [{type: 'text',text: 'Error: The date cannot be earlier than today.'}],
       };
     }
     if (
@@ -822,14 +824,9 @@ server.tool(
     trainFilterFlags,
   }) => {
     // 检查日期是否早于当前日期
-    if (new Date(date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
+    if (!checkDate(date)) {
       return {
-        content: [
-          {
-            type: 'text',
-            text: 'Error: The date cannot be earlier than today.',
-          },
-        ],
+        content: [{type: 'text',text: 'Error: The date cannot be earlier than today.'}],
       };
     }
     if (
@@ -911,6 +908,17 @@ server.tool(
   }
 );
 
+interface RouteQueryResponse extends QueryResponse {
+  httpstatus: string;
+  data: {
+    data: RouteStationData[]
+  };
+  messages: [];
+  validateMessages: object;
+  validateMessagesShowId: string;
+}
+
+
 server.tool(
   'get-train-route-stations',
   '查询特定列车车次在指定区间内的途径车站、到站时间、出发时间及停留时间等详细经停信息。当用户询问某趟具体列车的经停站时使用此接口。',
@@ -956,20 +964,24 @@ server.tool(
         content: [{ type: 'text', text: 'Error: get cookie failed. ' }],
       };
     }
-    const queryResponse = await make12306Request<LeftTicketsQueryResponse>(
+    const queryResponse = await make12306Request<RouteQueryResponse>(
       queryUrl,
       queryParams,
       { Cookie: formatCookies(cookies) }
     );
-    if (queryResponse == null) {
+    if (queryResponse == null || queryResponse.data == undefined) {
       return {
         content: [
           { type: 'text', text: 'Error: get train route stations failed. ' },
         ],
       };
     }
-    const routeStationsData = parseRouteStationsData(queryResponse.data.data);
-    const routeStationsInfo = parseRouteStationsInfo(routeStationsData);
+    const routeStationsInfo = parseRouteStationsInfo(queryResponse.data.data);
+    if( routeStationsInfo.length == 0){
+       return {
+        content: [{ type: 'text', text: "未查询到相关车次信息。" }],
+      };
+    }
     return {
       content: [{ type: 'text', text: JSON.stringify(routeStationsInfo) }],
     };
@@ -1017,4 +1029,3 @@ main().catch((error) => {
   process.exit(1);
 });
 
-// Route部分也要修改
