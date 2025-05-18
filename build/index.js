@@ -416,9 +416,11 @@ function extractDWFlags(dw_flag_str) {
     return result;
 }
 function checkDate(date) {
-    const shangHaiTimeZone = 'Asia/Shanghai';
-    const nowInShanghai = toZonedTime(new Date(), shangHaiTimeZone).setHours(0, 0, 0, 0);
-    const inputInShanghai = toZonedTime(new Date(date), shangHaiTimeZone).setHours(0, 0, 0, 0);
+    const timeZone = 'Asia/Shanghai';
+    const nowInShanghai = toZonedTime(new Date(), timeZone);
+    nowInShanghai.setHours(0, 0, 0, 0);
+    const inputInShanghai = toZonedTime(new Date(date), timeZone);
+    inputInShanghai.setHours(0, 0, 0, 0);
     return inputInShanghai >= nowInShanghai;
 }
 async function make12306Request(url, scheme = new URLSearchParams(), headers = {}) {
