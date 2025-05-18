@@ -107,22 +107,22 @@ const DW_FLAGS = [
 const TRAIN_FILTERS = {
     //G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)
     G: (ticketInfo) => {
-        return ticketInfo.train_no.startsWith('G') ||
-            ticketInfo.train_no.startsWith('C')
+        return ticketInfo.start_train_code.startsWith('G') ||
+            ticketInfo.start_train_code.startsWith('C')
             ? true
             : false;
     },
     D: (ticketInfo) => {
-        return ticketInfo.train_no.startsWith('D') ? true : false;
+        return ticketInfo.start_train_code.startsWith('D') ? true : false;
     },
     Z: (ticketInfo) => {
-        return ticketInfo.train_no.startsWith('Z') ? true : false;
+        return ticketInfo.start_train_code.startsWith('Z') ? true : false;
     },
     T: (ticketInfo) => {
-        return ticketInfo.train_no.startsWith('T') ? true : false;
+        return ticketInfo.start_train_code.startsWith('T') ? true : false;
     },
     K: (ticketInfo) => {
-        return ticketInfo.train_no.startsWith('K') ? true : false;
+        return ticketInfo.start_train_code.startsWith('K') ? true : false;
     },
     O: (ticketInfo) => {
         return TRAIN_FILTERS.G(ticketInfo) ||
@@ -134,10 +134,18 @@ const TRAIN_FILTERS = {
             : true;
     },
     F: (ticketInfo) => {
-        return ticketInfo.dw_flag.includes('复兴号') ? true : false;
+        if ('dw_flag' in ticketInfo) {
+            return ticketInfo.dw_flag.includes('复兴号') ? true : false;
+        }
+        return ticketInfo.ticketList[0].dw_flag.includes('复兴号') ? true : false;
     },
     S: (ticketInfo) => {
-        return ticketInfo.dw_flag.includes('智能动车组') ? true : false;
+        if ('dw_flag' in ticketInfo) {
+            return ticketInfo.dw_flag.includes('智能动车组') ? true : false;
+        }
+        return ticketInfo.ticketList[0].dw_flag.includes('智能动车组')
+            ? true
+            : false;
     },
 };
 function parseCookies(cookies) {
@@ -217,8 +225,8 @@ function parseTicketsData(rawData) {
 function parseTicketsInfo(ticketsData) {
     const result = [];
     for (const ticket of ticketsData) {
-        const prices = extractPrices(ticket);
-        const dw_flag = extractDWFlags(ticket);
+        const prices = extractPrices(ticket.yp_info_new, ticket.seat_discount_info, ticket);
+        const dw_flag = extractDWFlags(ticket.dw_flag);
         result.push({
             train_no: ticket.train_no,
             start_train_code: ticket.station_train_code,
@@ -239,7 +247,7 @@ function formatTicketsInfo(ticketsInfo) {
     if (ticketsInfo.length === 0) {
         return '没有查询到相关车次信息';
     }
-    let result = '车次 | 出发站 -> 到达站 | 出发时间 -> 到达时间 | 历时 |';
+    let result = '车次 | 出发站 -> 到达站 | 出发时间 -> 到达时间 | 历时\n';
     ticketsInfo.forEach((ticketInfo) => {
         let infoStr = '';
         infoStr += `${ticketInfo.start_train_code}(实际车次train_no: ${ticketInfo.train_no}) ${ticketInfo.from_station}(telecode: ${ticketInfo.from_station_telecode}) -> ${ticketInfo.to_station}(telecode: ${ticketInfo.to_station_telecode}) ${ticketInfo.start_time} -> ${ticketInfo.arrive_time} 历时：${ticketInfo.lishi}`;
@@ -265,6 +273,71 @@ function filterTicketsInfo(ticketsInfo, filters) {
     }
     return result;
 }
+function parseInterlinesTicketInfo(interlineTicketsData) {
+    const result = [];
+    for (const interlineTicketData of interlineTicketsData) {
+        const prices = extractPrices(interlineTicketData.yp_info, interlineTicketData.seat_discount_info, interlineTicketData);
+        result.push({
+            train_no: interlineTicketData.train_no,
+            start_train_code: interlineTicketData.station_train_code,
+            start_time: interlineTicketData.start_time,
+            arrive_time: interlineTicketData.arrive_time,
+            lishi: interlineTicketData.lishi,
+            from_station: interlineTicketData.from_station_name,
+            to_station: interlineTicketData.to_station_name,
+            from_station_telecode: interlineTicketData.from_station_telecode,
+            to_station_telecode: interlineTicketData.to_station_telecode,
+            prices: prices,
+            dw_flag: extractDWFlags(interlineTicketData.dw_flag),
+        });
+    }
+    return result;
+}
+function parseInterlinesInfo(interlineData) {
+    const result = [];
+    for (const ticket of interlineData) {
+        const interlineTickets = parseInterlinesTicketInfo(ticket.fullList);
+        result.push({
+            all_lishi: ticket.all_lishi,
+            start_time: ticket.start_time,
+            start_date: ticket.train_date,
+            middle_date: ticket.middle_date,
+            arrive_date: ticket.arrive_date,
+            arrive_time: ticket.arrive_time,
+            from_station_code: ticket.from_station_code,
+            from_station_name: ticket.from_station_name,
+            middle_station_code: ticket.middle_station_code,
+            middle_station_name: ticket.middle_station_name,
+            end_station_code: ticket.end_station_code,
+            end_station_name: ticket.end_station_name,
+            start_train_code: interlineTickets[0].start_train_code,
+            first_train_no: ticket.first_train_no,
+            second_train_no: ticket.second_train_no,
+            train_count: ticket.train_count,
+            ticketList: interlineTickets,
+            same_station: ticket.same_station == '0' ? true : false,
+            same_train: ticket.same_train == 'Y' ? true : false,
+            wait_time: ticket.wait_time,
+        });
+    }
+    return result;
+}
+function formatInterlinesInfo(interlinesInfo) {
+    let result = '出发时间 -> 到达时间 | 出发车站 -> 中转车站 -> 到达车站 | 换乘标志 |换乘等待时间| 总历时\n\n';
+    interlinesInfo.forEach((interlineInfo) => {
+        result += `${interlineInfo.start_date} ${interlineInfo.start_time} -> ${interlineInfo.arrive_date} ${interlineInfo.arrive_time} | `;
+        result += `${interlineInfo.from_station_name} -> ${interlineInfo.middle_station_name} -> ${interlineInfo.end_station_name} | `;
+        result += `${interlineInfo.same_train
+            ? '同车换乘'
+            : interlineInfo.same_station
+                ? '同站换乘'
+                : '换站换乘'} | ${interlineInfo.wait_time} | ${interlineInfo.all_lishi}\n\n`;
+        result +=
+            '\t' + formatTicketsInfo(interlineInfo.ticketList).replace(/\n/g, '\n\t');
+        result += '\n';
+    });
+    return result;
+}
 function parseStationsData(rawData) {
     const result = {};
     const dataArray = rawData.split('|');
@@ -284,37 +357,36 @@ function parseStationsData(rawData) {
     }
     return result;
 }
-function extractPrices(ticketData) {
+function extractPrices(yp_info, seat_discount_info, ticketData) {
     const PRICE_STR_LENGTH = 10;
     const DISCOUNT_STR_LENGTH = 5;
-    const yp_ex = ticketData.yp_ex;
-    const yp_info_new = ticketData.yp_info_new;
-    const seat_discount_info = ticketData.seat_discount_info;
+    console.error(ticketData);
     const prices = {};
     const discounts = {};
     for (let i = 0; i < seat_discount_info.length / DISCOUNT_STR_LENGTH; i++) {
         const discount_str = seat_discount_info.slice(i * DISCOUNT_STR_LENGTH, (i + 1) * DISCOUNT_STR_LENGTH);
         discounts[discount_str[0]] = parseInt(discount_str.slice(1), 10);
     }
-    const exList = yp_ex.split(/[01]/).filter(Boolean); // Remove empty strings
-    exList.forEach((ex, index) => {
-        const seat_type = SEAT_TYPES[ex];
-        const price_str = yp_info_new.slice(index * PRICE_STR_LENGTH, (index + 1) * PRICE_STR_LENGTH);
+    for (let i = 0; i < yp_info.length / PRICE_STR_LENGTH; i++) {
+        const price_str = yp_info.slice(i * PRICE_STR_LENGTH, (i + 1) * PRICE_STR_LENGTH);
+        const seat_type_code = price_str[0];
+        const seat_type = SEAT_TYPES[seat_type_code];
         const price = parseInt(price_str.slice(1, -5), 10);
-        const discount = ex in discounts ? discounts[ex] : null;
-        prices[ex] = {
+        console.error({ seat_type_code, seat_type, price });
+        const discount = seat_type_code in discounts ? discounts[seat_type_code] : null;
+        prices[seat_type_code] = {
             seat_name: seat_type.name,
             short: seat_type.short,
-            seat_type_code: ex,
+            seat_type_code,
             num: ticketData[`${seat_type.short}_num`],
             price,
             discount,
         };
-    });
+    }
     return Object.values(prices);
 }
-function extractDWFlags(ticketData) {
-    const dwFlagList = ticketData.dw_flag.split('#');
+function extractDWFlags(dw_flag_str) {
+    const dwFlagList = dw_flag_str.split('#');
     let result = [];
     if ('5' == dwFlagList[0]) {
         result.push(DW_FLAGS[0]);
@@ -493,6 +565,122 @@ server.tool('get-tickets', '查询12306余票信息。', {
         content: [{ type: 'text', text: formatTicketsInfo(filteredTicketsInfo) }],
     };
 });
+// https://kyfw.12306.cn/lcquery/queryG?
+// train_date=2025-05-10&
+// from_station_telecode=CDW&
+// to_station_telecode=ZGE&
+// middle_station=&
+// result_index=0&
+// can_query=Y&
+// isShowWZ=N&
+// purpose_codes=00&
+// channel=E  ?channel是什么用的
+server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只支持查询前十条。', {
+    date: z.string().length(10).describe('日期( 格式: yyyy-mm-dd )'),
+    fromStation: z
+        .string()
+        .describe('出发车站的station_code 或 出发城市的station_code'),
+    toStation: z
+        .string()
+        .describe('到达车站的station_code 或 出发城市的station_code'),
+    middleStation: z
+        .string()
+        .optional()
+        .default('')
+        .describe('中转车站的station_code 或 中转城市的station_code，可选。'),
+    showWZ: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe('是否显示无座车，默认不显示无座车。'),
+    trainFilterFlags: z
+        .string()
+        .regex(/^[GDZTKOFS]*$/)
+        .max(8)
+        .optional()
+        .default('')
+        .describe('车次筛选条件，默认为空。从以下标志中选取多个条件组合[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'),
+}, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, }) => {
+    // 检查日期是否早于当前日期
+    if (new Date(date).setHours(0, 0, 0, 0) < new Date().setHours(0, 0, 0, 0)) {
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: The date cannot be earlier than today.',
+                },
+            ],
+        };
+    }
+    if (!Object.keys(STATIONS).includes(fromStation) ||
+        !Object.keys(STATIONS).includes(toStation)) {
+        return {
+            content: [{ type: 'text', text: 'Error: Station not found. ' }],
+        };
+    }
+    const queryUrl = `${API_BASE}/lcquery/queryG`;
+    const queryParams = new URLSearchParams({
+        train_date: date,
+        from_station_telecode: fromStation,
+        to_station_telecode: toStation,
+        middle_station: middleStation,
+        result_index: '0',
+        can_query: 'Y',
+        isShowWZ: showWZ ? 'Y' : 'N',
+        purpose_codes: '00', // 00: 成人票 0X: 学生票
+        channel: 'E', // 没搞清楚什么用
+    });
+    const cookies = await getCookie(API_BASE);
+    if (cookies == null) {
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: get cookie failed. Check your network.',
+                },
+            ],
+        };
+    }
+    const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
+    // 处理请求错误
+    if (queryResponse === null || queryResponse === undefined) {
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: request interline tickets data failed. ',
+                },
+            ],
+        };
+    }
+    // 请求成功，但查询有误
+    if (typeof queryResponse.data == 'string') {
+        return {
+            content: [{ type: 'text', text: queryResponse.errorMsg }],
+        };
+    }
+    // 请求和查询都没问题
+    let interlineTicketsInfo;
+    try {
+        interlineTicketsInfo = parseInterlinesInfo(queryResponse.data.middleList);
+    }
+    catch (error) {
+        return {
+            content: [
+                { type: 'text', text: `Error: parse tickets info failed. ${error}` },
+            ],
+        };
+    }
+    const filteredInterlineTicketsInfo = filterTicketsInfo(interlineTicketsInfo, trainFilterFlags);
+    return {
+        content: [
+            {
+                type: 'text',
+                text: formatInterlinesInfo(filteredInterlineTicketsInfo),
+            },
+        ],
+    };
+});
 server.tool('get-train-route-stations', '查询列车途径车站信息。', {
     trainNo: z.string().describe('实际车次编号train_no，例如240000G10336.'),
     fromStationTelecode: z
@@ -568,3 +756,4 @@ main().catch((error) => {
     console.error('Fatal error in main():', error);
     process.exit(1);
 });
+// Route部分也要修改
