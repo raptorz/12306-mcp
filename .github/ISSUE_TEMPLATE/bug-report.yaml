@@ -1,8 +1,8 @@
 name: Bug反馈
-about: 反馈使用遇到的问题。
+description: 反馈使用遇到的问题。
 title: "[BUG]"
 labels: bug
-assignees: ''
+
 body:
   - type: textarea
     id: bug-description
@@ -13,7 +13,7 @@ body:
     validations:
       required: true
   - type: textarea
-    id: bug-description
+    id: screenshots
     attributes:
       label: Screenshot截图
       description: 尽量提供运行时报错或者结果错误的参数截图，包括调用参数。Please try to provide screenshots of the parameters that cause runtime errors or incorrect results, including the invocation parameters.
@@ -21,7 +21,7 @@ body:
     validations:
       required: true
   - type: textarea
-    id: bug-description
+    id: addtional-context
     attributes:
       label: Additional context其他信息
       description: 其他信息。Add any other context about the problem here.
