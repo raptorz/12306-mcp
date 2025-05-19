@@ -264,7 +264,7 @@ function parseTicketsData(rawData: string[]): TicketData[] {
   return result;
 }
 
-function parseTicketsInfo(ticketsData: TicketData[]): TicketInfo[] {
+function parseTicketsInfo(ticketsData: TicketData[], map:Record<string,string>): TicketInfo[] {
   const result: TicketInfo[] = [];
   for (const ticket of ticketsData) {
     const prices = extractPrices(
@@ -279,8 +279,8 @@ function parseTicketsInfo(ticketsData: TicketData[]): TicketInfo[] {
       start_time: ticket.start_time,
       arrive_time: ticket.arrive_time,
       lishi: ticket.lishi,
-      from_station: STATIONS[ticket.from_station_telecode].station_name,
-      to_station: STATIONS[ticket.to_station_telecode].station_name,
+      from_station: map[ticket.from_station_telecode],
+      to_station: map[ticket.to_station_telecode],
       from_station_telecode: ticket.from_station_telecode,
       to_station_telecode: ticket.to_station_telecode,
       prices: prices,
@@ -431,8 +431,7 @@ function extractPrices(
 ): Price[] {
   const PRICE_STR_LENGTH = 10;
   const DISCOUNT_STR_LENGTH = 5;
-  console.error(ticketData);
-  const prices: { [key: string]: Price } = {};
+  const prices: Price[] = [];
   const discounts: { [key: string]: number } = {};
   for (let i = 0; i < seat_discount_info.length / DISCOUNT_STR_LENGTH; i++) {
     const discount_str = seat_discount_info.slice(
@@ -447,13 +446,20 @@ function extractPrices(
       i * PRICE_STR_LENGTH,
       (i + 1) * PRICE_STR_LENGTH
     );
-    const seat_type_code = price_str[0];
+    var seat_type_code;
+    if (parseInt(price_str.slice(6, 10), 10) >= 3000){ // 根据12306的js逆向出来的，不懂。
+      seat_type_code = 'W'; // 为无座
+    }
+    else if(!Object.keys(SEAT_TYPES).includes(price_str[0])){
+      seat_type_code = 'H'; // 其他坐席
+    }
+    else{
+      seat_type_code = price_str[0];
+    }
     const seat_type = SEAT_TYPES[seat_type_code as keyof typeof SEAT_TYPES];
-    const price = parseInt(price_str.slice(1, -5), 10);
-    console.error({ seat_type_code, seat_type, price });
-    const discount =
-      seat_type_code in discounts ? discounts[seat_type_code] : null;
-    prices[seat_type_code] = {
+    const price = parseInt(price_str.slice(1, 6), 10) / 10;
+    const discount = seat_type_code in discounts ? discounts[seat_type_code] : null;
+    prices.push({
       seat_name: seat_type.name,
       short: seat_type.short,
       seat_type_code,
@@ -462,9 +468,9 @@ function extractPrices(
       ],
       price,
       discount,
-    };
+    });
   }
-  return Object.values(prices);
+  return prices;
 }
 
 function extractDWFlags(dw_flag_str: string): string[] {
@@ -613,7 +619,6 @@ server.tool(
   async ({ citys }) => {
     let result: Record<string, object> = {};
     for (const city of citys.split('|')) {
-      console.error(city);
       if (!(city in CITY_CODES)) {
         result[city] = { error: '未检索到城市。' };
       } else {
@@ -757,8 +762,9 @@ server.tool(
     const ticketsData = parseTicketsData(queryResponse.data.result);
     let ticketsInfo: TicketInfo[];
     try {
-      ticketsInfo = parseTicketsInfo(ticketsData);
+      ticketsInfo = parseTicketsInfo(ticketsData, queryResponse.data.map);
     } catch (error) {
+      console.error('Error: parse tickets info failed. ',error);
       return {
         content: [{ type: 'text', text: 'Error: parse tickets info failed. ' }],
       };
