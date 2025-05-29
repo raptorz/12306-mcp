@@ -68,6 +68,12 @@ node ./build/index.js
 
 
 
+## <div align="center">📚Documentation</div>
+
+- [服务原理详解](./docs/principle.md)  12306-MCP服务的工作原理
+- [架构图](./docs/architecture.md)  12306-MCP服务的架构图
+   ![12306-MCP 服务架构图](./docs/architecture.png)
+
 ## <div align="center">👉️Reference</div>
 - [modelcontextprotocol/modelcontextprotocol](https://github.com/modelcontextprotocol/modelcontextprotocol)
 - [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk)
