@@ -934,7 +934,6 @@ server.tool(
       queryParams,
       { Cookie: formatCookies(cookies) }
     );
-    console.log("___333queryResponse", JSON.stringify(queryResponse));
     // 处理请求错误
     if (queryResponse === null || queryResponse === undefined) {
       return {

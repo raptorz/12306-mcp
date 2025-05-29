@@ -732,7 +732,6 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         };
     }
     const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
-    console.log("___333queryResponse", JSON.stringify(queryResponse));
     // 处理请求错误
     if (queryResponse === null || queryResponse === undefined) {
         return {
