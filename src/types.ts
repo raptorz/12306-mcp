@@ -122,7 +122,9 @@ export const TicketDataKeys: (keyof TicketData)[] = [
 export type TicketInfo = {
   train_no: string;
   start_train_code: string;
+  start_date: string;
   start_time: string;
+  arrive_date: string;
   arrive_time: string;
   lishi: string;
   from_station: string;
@@ -225,7 +227,7 @@ export type InterlineData = {
 };
 
 export type InterlineInfo = {
-  all_lishi: string;
+  lishi: string;
   //all_lishi_minutes: number;
   start_time: string;
   start_date: string;
