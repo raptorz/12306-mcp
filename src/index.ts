@@ -23,6 +23,8 @@ import {
 
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
+const LCQUERY_INIT_URL = "https://kyfw.12306.cn/otn/lcQuery/init"
+const LCQUERY_PATH = await getLCQueryPath();
 const MISSING_STATIONS: StationData[] = [
   {
     station_id: '@cdd',
@@ -621,7 +623,7 @@ server.tool(
 
 server.tool(
   'get-stations-code-in-city',
-  '通过中文城市名查询该城市 **所有** 火车站的名称及其对应的 `station_code`，结果是一个包含多个车站信息的列表。当用户想了解一个城市有哪些火车站，或者不确定具体从哪个车站出发/到达时可以使用此接口。',
+  '通过中文城市名查询该城市 **所有** 火车站的名称及其对应的 `station_code`，结果是一个包含多个车站信息的列表。',
   {
     city: z.string().describe('中文城市名称，例如："北京", "上海"'),
   },
@@ -906,7 +908,7 @@ server.tool(
         content: [{ type: 'text', text: 'Error: Station not found. ' }],
       };
     }
-    const queryUrl = `${API_BASE}/lcquery/queryU`;
+    const queryUrl = `${API_BASE}${LCQUERY_PATH}`;
     const queryParams = new URLSearchParams({
       train_date: date,
       from_station_telecode: fromStation,
@@ -948,7 +950,7 @@ server.tool(
     // 请求成功，但查询有误
     if (typeof queryResponse.data == 'string') {
       return {
-        content: [{ type: 'text', text: queryResponse.errorMsg }],
+        content: [{ type: 'text', text: `很抱歉，未查到相关的列车余票。(${queryResponse.errorMsg})` }],
       };
     }
     // 请求和查询都没问题
@@ -1061,7 +1063,7 @@ async function getStations(): Promise<Record<string, StationData>> {
   if (html == null) {
     throw new Error('Error: get 12306 web page failed.');
   }
-  const match = html.match('.(/script/core/common/station_name.+?.js)');
+  const match = html.match('.(/script/core/common/station_name.+?\.js)');
   if (match == null) {
     throw new Error('Error: get station name js file failed.');
   }
@@ -1081,6 +1083,18 @@ async function getStations(): Promise<Record<string, StationData>> {
     }
   }
   return stationsData;
+}
+
+async function getLCQueryPath(): Promise<string> { 
+  const html = await make12306Request<string>(LCQUERY_INIT_URL);
+  if (html == null) {
+    throw new Error('Error: get 12306 web page failed.');
+  }
+  const match = html.match(/ var lc_search_url = '(.+?)'/);
+  if (match == null) {
+    throw new Error('Error: get station name js file failed.');
+  }
+  return match[1];
 }
 
 async function init() {}
