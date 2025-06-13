@@ -3,7 +3,10 @@
   "version": "0.3.2",
   "main": "build/index.js",
   "scripts": {
+    "prebuild": "rm -rf build/*",
     "build": "tsc",
+    "postbuild": "chmod +x build/index.js",
+    "prepare": "npm run build",
     "test": "tsc && node ./build/index.js",
     "debug": "tsc && npx @modelcontextprotocol/inspector node ./build/index.js"
   },
