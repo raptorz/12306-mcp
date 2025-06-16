@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Data一般用于表示从服务器上请求到的数据，Info一般表示解析并筛选过的要传输给大模型的数据。变量使用驼峰命名，常量使用全大写下划线命名。
+import { program } from 'commander';
+import { startSseAndStreamableHttpMcpServer } from 'mcp-http-server';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
@@ -587,6 +589,7 @@ const server = new McpServer({
         '*   **参数准确性**：确保传递给每个的参数格式和类型都正确，特别是日期格式和地点编码。\n' +
         '*   **必要时追问**：如果用户信息不足以调用接口，请向用户追问缺失的信息。\n' +
         '*   **清晰呈现结果**：将接口返回的信息以用户易于理解的方式进行呈现。\n\n' +
+        '*   **尽量精确需求**：尽量利用筛选功能筛选用户需要的车票信息，从而简短上下文长度。\n\n' +
         '请根据上述指引选择接口。',
 });
 server.resource('stations', 'data://all-stations', async (uri) => ({
@@ -984,13 +987,34 @@ async function getLCQueryPath() {
     return match[1];
 }
 async function init() { }
-async function main() {
-    const transport = new StdioServerTransport();
-    await init();
-    await server.connect(transport);
-    console.error('12306 MCP Server running on stdio @Joooook');
-}
-main().catch((error) => {
-    console.error('Fatal error in main():', error);
-    process.exit(1);
+program
+    .name('mcp-server-12306')
+    .description('MCP server for 12306')
+    .version(VERSION)
+    .option('--host <host>', 'host to bind server to. Default is localhost. Use 0.0.0.0 to bind to all interfaces.')
+    .option('--port <port>', 'port to listen on for SSE and HTTP transport.')
+    .action(async (options) => {
+    try {
+        await init();
+        if (options.port || options.host) {
+            await startSseAndStreamableHttpMcpServer({
+                host: options.host,
+                port: options.port,
+                // @ts-ignore
+                createMcpServer: async ({ headers }) => {
+                    return server;
+                },
+            });
+        }
+        else {
+            const transport = new StdioServerTransport();
+            await server.connect(transport);
+            console.error('12306 MCP Server running on stdio @Joooook');
+        }
+    }
+    catch (error) {
+        console.error('Fatal error in main():', error);
+        process.exit(1);
+    }
 });
+program.parse();
