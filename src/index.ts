@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 // Data一般用于表示从服务器上请求到的数据，Info一般表示解析并筛选过的要传输给大模型的数据。变量使用驼峰命名，常量使用全大写下划线命名。
+import { program } from 'commander';
+import { startSseAndStreamableHttpMcpServer } from 'mcp-http-server';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import axios from 'axios';
@@ -672,7 +674,7 @@ async function make12306Request<T>(
 }
 
 // Create server instance
-const server = new McpServer({
+export const server = new McpServer({
   name: '12306-mcp',
   version: VERSION,
   capabilities: {
@@ -1257,14 +1259,36 @@ async function getLCQueryPath(): Promise<string> {
 
 async function init() {}
 
-async function main() {
-  const transport = new StdioServerTransport();
-  await init();
-  await server.connect(transport);
-  console.error('12306 MCP Server running on stdio @Joooook');
-}
+program
+  .name('mcp-server-12306')
+  .description('MCP server for 12306')
+  .version(VERSION)
+  .option(
+    '--host <host>',
+    'host to bind server to. Default is localhost. Use 0.0.0.0 to bind to all interfaces.'
+  )
+  .option('--port <port>', 'port to listen on for SSE and HTTP transport.')
+  .action(async (options) => {
+    try {
+      await init();
+      if (options.port || options.host) {
+        await startSseAndStreamableHttpMcpServer({
+          host: options.host,
+          port: options.port,
+          // @ts-ignore
+          createMcpServer: async ({ headers }) => {
+            return server;
+          },
+        });
+      } else {
+        const transport = new StdioServerTransport();
+        await server.connect(transport);
+        console.error('12306 MCP Server running on stdio @Joooook');
+      }
+    } catch (error) {
+      console.error('Fatal error in main():', error);
+      process.exit(1);
+    }
+  });
 
-main().catch((error) => {
-  console.error('Fatal error in main():', error);
-  process.exit(1);
-});
+program.parse();
