@@ -23,7 +23,7 @@ import {
     TicketInfo,
 } from './types.js';
 
-const VERSION = '0.3.2';
+const VERSION = '0.3.3';
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
 const LCQUERY_INIT_URL = 'https://kyfw.12306.cn/otn/lcQuery/init';
