@@ -9,10 +9,10 @@ import { z } from 'zod';
 import { format, parse } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { StationDataKeys, TicketDataKeys, } from './types.js';
-const VERSION = "0.3.2";
+const VERSION = '0.3.2';
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
-const LCQUERY_INIT_URL = "https://kyfw.12306.cn/otn/lcQuery/init";
+const LCQUERY_INIT_URL = 'https://kyfw.12306.cn/otn/lcQuery/init';
 const LCQUERY_PATH = await getLCQueryPath();
 const MISSING_STATIONS = [
     {
@@ -144,7 +144,9 @@ const TRAIN_FILTERS = {
         if ('dw_flag' in ticketInfo) {
             return ticketInfo.dw_flag.includes('复兴号') ? true : false;
         }
-        return ticketInfo.ticketList[0].dw_flag.includes('复兴号') ? true : false;
+        return ticketInfo.ticketList[0].dw_flag.includes('复兴号')
+            ? true
+            : false;
     },
     S: (ticketInfo) => {
         if ('dw_flag' in ticketInfo) {
@@ -222,10 +224,11 @@ function formatCookies(cookies) {
         .map(([key, value]) => `${key}=${value}`)
         .join('; ');
 }
-async function getCookie(url) {
+async function getCookie() {
+    const url = `${API_BASE}/otn/`;
     try {
-        const response = await axios.get(url);
-        const setCookieHeader = response.headers['set-cookie'];
+        const response = await fetch(url);
+        const setCookieHeader = response.headers.getSetCookie();
         if (setCookieHeader) {
             return parseCookies(setCookieHeader);
         }
@@ -292,8 +295,8 @@ function parseTicketsInfo(ticketsData, map) {
         arriveDate.setHours(startHours + durationHours, startMinutes + durationMinutes);
         result.push({
             train_no: ticket.train_no,
-            start_date: format(startDate, "yyyy-MM-dd"),
-            arrive_date: format(arriveDate, "yyyy-MM-dd"),
+            start_date: format(startDate, 'yyyy-MM-dd'),
+            arrive_date: format(arriveDate, 'yyyy-MM-dd'),
             start_train_code: ticket.station_train_code,
             start_time: ticket.start_time,
             arrive_time: ticket.arrive_time,
@@ -397,8 +400,8 @@ function parseInterlinesTicketInfo(interlineTicketsData) {
         result.push({
             train_no: interlineTicketData.train_no,
             start_train_code: interlineTicketData.station_train_code,
-            start_date: format(startDate, "yyyy-MM-dd"),
-            arrive_date: format(arriveDate, "yyyy-MM-dd"),
+            start_date: format(startDate, 'yyyy-MM-dd'),
+            arrive_date: format(arriveDate, 'yyyy-MM-dd'),
             start_time: interlineTicketData.start_time,
             arrive_time: interlineTicketData.arrive_time,
             lishi: interlineTicketData.lishi,
@@ -453,7 +456,8 @@ function formatInterlinesInfo(interlinesInfo) {
                 ? '同站换乘'
                 : '换站换乘'} | ${interlineInfo.wait_time} | ${interlineInfo.lishi}\n\n`;
         result +=
-            '\t' + formatTicketsInfo(interlineInfo.ticketList).replace(/\n/g, '\n\t');
+            '\t' +
+                formatTicketsInfo(interlineInfo.ticketList).replace(/\n/g, '\n\t');
         result += '\n';
     });
     return result;
@@ -504,7 +508,8 @@ function extractPrices(yp_info, seat_discount_info, ticketData) {
     for (let i = 0; i < yp_info.length / PRICE_STR_LENGTH; i++) {
         const price_str = yp_info.slice(i * PRICE_STR_LENGTH, (i + 1) * PRICE_STR_LENGTH);
         var seat_type_code;
-        if (parseInt(price_str.slice(6, 10), 10) >= 3000) { // 根据12306的js逆向出来的，不懂。
+        if (parseInt(price_str.slice(6, 10), 10) >= 3000) {
+            // 根据12306的js逆向出来的，不懂。
             seat_type_code = 'W'; // 为无座
         }
         else if (!Object.keys(SEAT_TYPES).includes(price_str[0])) {
@@ -607,7 +612,12 @@ server.tool('get-current-date', '获取当前日期，以上海时区（Asia/Sha
     catch (error) {
         console.error('Error getting current date:', error);
         return {
-            content: [{ type: 'text', text: 'Error: Failed to get current date.' }],
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: Failed to get current date.',
+                },
+            ],
         };
     }
 });
@@ -620,7 +630,9 @@ server.tool('get-stations-code-in-city', '通过中文城市名查询该城市 *
         };
     }
     return {
-        content: [{ type: 'text', text: JSON.stringify(CITY_STATIONS[city]) }],
+        content: [
+            { type: 'text', text: JSON.stringify(CITY_STATIONS[city]) },
+        ],
     };
 });
 server.tool('get-station-code-of-citys', '通过中文城市名查询代表该城市的 `station_code`。此接口主要用于在用户提供**城市名**作为出发地或到达地时，为接口准备 `station_code` 参数。', {
@@ -674,7 +686,10 @@ server.tool('get-station-by-telecode', '通过车站的 `station_telecode` 查�
     }
     return {
         content: [
-            { type: 'text', text: JSON.stringify(STATIONS[stationTelecode]) },
+            {
+                type: 'text',
+                text: JSON.stringify(STATIONS[stationTelecode]),
+            },
         ],
     };
 });
@@ -712,7 +727,7 @@ server.tool('get-tickets', '查询12306余票信息。', {
         .optional()
         .default(0)
         .describe('返回的余票数量限制，默认为0，即不限制。'),
-}, async ({ date, fromStation, toStation, trainFilterFlags, sortFlag, sortReverse, limitedNum }) => {
+}, async ({ date, fromStation, toStation, trainFilterFlags, sortFlag, sortReverse, limitedNum, }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
         return {
@@ -737,7 +752,7 @@ server.tool('get-tickets', '查询12306余票信息。', {
         purpose_codes: 'ADULT',
     });
     const queryUrl = `${API_BASE}/otn/leftTicket/query`;
-    const cookies = await getCookie(API_BASE);
+    const cookies = await getCookie();
     if (cookies == null) {
         return {
             content: [
@@ -751,7 +766,9 @@ server.tool('get-tickets', '查询12306余票信息。', {
     const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
     if (queryResponse === null || queryResponse === undefined) {
         return {
-            content: [{ type: 'text', text: 'Error: get tickets data failed. ' }],
+            content: [
+                { type: 'text', text: 'Error: get tickets data failed. ' },
+            ],
         };
     }
     const ticketsData = parseTicketsData(queryResponse.data.result);
@@ -762,12 +779,19 @@ server.tool('get-tickets', '查询12306余票信息。', {
     catch (error) {
         console.error('Error: parse tickets info failed. ', error);
         return {
-            content: [{ type: 'text', text: 'Error: parse tickets info failed. ' }],
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: parse tickets info failed. ',
+                },
+            ],
         };
     }
     const filteredTicketsInfo = filterTicketsInfo(ticketsInfo, trainFilterFlags, sortFlag, sortReverse, limitedNum);
     return {
-        content: [{ type: 'text', text: formatTicketsInfo(filteredTicketsInfo) }],
+        content: [
+            { type: 'text', text: formatTicketsInfo(filteredTicketsInfo) },
+        ],
     };
 });
 // https://kyfw.12306.cn/lcquery/queryG?
@@ -820,11 +844,11 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         .describe('是否逆向排序结果，默认为false。仅在设置了sortFlag时生效。'),
     limitedNum: z
         .number()
-        .min(0)
+        .min(1)
         .optional()
-        .default(0)
-        .describe('返回的余票数量限制，默认为0，即不限制。'),
-}, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, sortFlag, sortReverse, limitedNum }) => {
+        .default(10)
+        .describe('返回的中转余票数量限制，默认为10。'),
+}, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, sortFlag, sortReverse, limitedNum, }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
         return {
@@ -843,6 +867,18 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         };
     }
     const queryUrl = `${API_BASE}${LCQUERY_PATH}`;
+    const cookies = await getCookie();
+    if (cookies == null) {
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: 'Error: get cookie failed. Check your network.',
+                },
+            ],
+        };
+    }
+    var interlineData = [];
     const queryParams = new URLSearchParams({
         train_date: date,
         from_station_telecode: fromStation,
@@ -854,44 +890,48 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         purpose_codes: '00', // 00: 成人票 0X: 学生票
         channel: 'E', // 没搞清楚什么用
     });
-    const cookies = await getCookie(API_BASE);
-    if (cookies == null) {
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: 'Error: get cookie failed. Check your network.',
-                },
-            ],
-        };
-    }
-    const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
-    // 处理请求错误
-    if (queryResponse === null || queryResponse === undefined) {
-        return {
-            content: [
-                {
-                    type: 'text',
-                    text: 'Error: request interline tickets data failed. ',
-                },
-            ],
-        };
-    }
-    // 请求成功，但查询有误
-    if (typeof queryResponse.data == 'string') {
-        return {
-            content: [{ type: 'text', text: `很抱歉，未查到相关的列车余票。(${queryResponse.errorMsg})` }],
-        };
+    while (interlineData.length < limitedNum) {
+        const queryResponse = await make12306Request(queryUrl, queryParams, { Cookie: formatCookies(cookies) });
+        // 处理请求错误
+        if (queryResponse === null || queryResponse === undefined) {
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: 'Error: request interline tickets data failed. ',
+                    },
+                ],
+            };
+        }
+        // 请求成功，但查询有误
+        if (typeof queryResponse.data == 'string') {
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `很抱歉，未查到相关的列车余票。(${queryResponse.errorMsg})`,
+                    },
+                ],
+            };
+        }
+        interlineData = interlineData.concat(queryResponse.data.middleList);
+        if (queryResponse.data.can_query == 'N') {
+            break;
+        }
+        queryParams.set('result_index', queryResponse.data.result_index.toString());
     }
     // 请求和查询都没问题
     let interlineTicketsInfo;
     try {
-        interlineTicketsInfo = parseInterlinesInfo(queryResponse.data.middleList);
+        interlineTicketsInfo = parseInterlinesInfo(interlineData);
     }
     catch (error) {
         return {
             content: [
-                { type: 'text', text: `Error: parse tickets info failed. ${error}` },
+                {
+                    type: 'text',
+                    text: `Error: parse tickets info failed. ${error}`,
+                },
             ],
         };
     }
@@ -927,7 +967,7 @@ server.tool('get-train-route-stations', '查询特定列车车次在指定区间
         depart_date: departDate,
     });
     const queryUrl = `${API_BASE}/otn/czxx/queryByTrainNo`;
-    const cookies = await getCookie(API_BASE);
+    const cookies = await getCookie();
     if (cookies == null) {
         return {
             content: [{ type: 'text', text: 'Error: get cookie failed. ' }],
@@ -937,7 +977,10 @@ server.tool('get-train-route-stations', '查询特定列车车次在指定区间
     if (queryResponse == null || queryResponse.data == undefined) {
         return {
             content: [
-                { type: 'text', text: 'Error: get train route stations failed. ' },
+                {
+                    type: 'text',
+                    text: 'Error: get train route stations failed. ',
+                },
             ],
         };
     }
@@ -948,7 +991,9 @@ server.tool('get-train-route-stations', '查询特定列车车次在指定区间
         };
     }
     return {
-        content: [{ type: 'text', text: JSON.stringify(routeStationsInfo) }],
+        content: [
+            { type: 'text', text: JSON.stringify(routeStationsInfo) },
+        ],
     };
 });
 async function getStations() {
@@ -956,7 +1001,7 @@ async function getStations() {
     if (html == null) {
         throw new Error('Error: get 12306 web page failed.');
     }
-    const match = html.match('.(/script/core/common/station_name.+?\.js)');
+    const match = html.match('.(/script/core/common/station_name.+?.js)');
     if (match == null) {
         throw new Error('Error: get station name js file failed.');
     }
