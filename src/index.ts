@@ -23,7 +23,7 @@ import {
     TicketInfo,
 } from './types.js';
 
-const VERSION = '0.3.3';
+const VERSION = '0.3.4';
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
 const LCQUERY_INIT_URL = 'https://kyfw.12306.cn/otn/lcQuery/init';
@@ -276,7 +276,7 @@ function formatCookies(cookies: Record<string, string>): string {
 }
 
 async function getCookie() {
-    const url = `${API_BASE}/otn/`;
+    const url = `${API_BASE}/otn/leftTicket/init`;
     try {
         const response = await fetch(url);
         const setCookieHeader = response.headers.getSetCookie();
@@ -961,7 +961,7 @@ server.tool(
         });
         const queryUrl = `${API_BASE}/otn/leftTicket/query`;
         const cookies = await getCookie();
-        if (cookies == null) {
+        if (cookies == null || Object.entries(cookies).length === 0) {
             return {
                 content: [
                     {
@@ -1134,7 +1134,7 @@ server.tool(
         }
         const queryUrl = `${API_BASE}${LCQUERY_PATH}`;
         const cookies = await getCookie();
-        if (cookies == null) {
+        if (cookies == null || Object.entries(cookies).length === 0) {
             return {
                 content: [
                     {
@@ -1277,7 +1277,7 @@ server.tool(
         });
         const queryUrl = `${API_BASE}/otn/czxx/queryByTrainNo`;
         const cookies = await getCookie();
-        if (cookies == null) {
+        if (cookies == null || Object.entries(cookies).length === 0) {
             return {
                 content: [{ type: 'text', text: 'Error: get cookie failed. ' }],
             };
