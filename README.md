@@ -62,8 +62,20 @@ npx -y 12306-mcp
         }
     }
 }
+
 ~~~
 
+### Docker-stdio
+~~~bash
+docker build . -t 12306-mcp
+docker run --rm -it 12306-mcp npx 12306-mcp
+~~~
+
+### Docker-http
+~~~bash
+docker build . -t 12306-mcp
+docker run -p [your_port]:8080 -d 12306-mcp npx 12306-mcp --port 8080
+~~~
 
 
 
