@@ -433,11 +433,14 @@ function formatTicketsInfo(ticketsInfo: TicketInfo[]): string {
 function filterTicketsInfo<T extends TicketInfo | InterlineInfo>(
     ticketsInfo: T[],
     trainFilterFlags: string,
+    earliestStartTime: number = 0,
+    latestStartTime: number = 24,
     sortFlag: string = '',
     sortReverse: boolean = false,
     limitedNum: number = 0
 ): T[] {
     let result: T[];
+    // FilterFlags过滤 
     if (trainFilterFlags.length === 0) {
         result = ticketsInfo;
     } else {
@@ -455,6 +458,17 @@ function filterTicketsInfo<T extends TicketInfo | InterlineInfo>(
             }
         }
     }
+    // startTime 过滤
+    result = result.filter(ticketInfo => {
+        const startTimeHour = parseInt(ticketInfo.start_time.split(':')[0], 10);
+        if(startTimeHour >= earliestStartTime && startTimeHour < latestStartTime){
+            return true
+        }
+        return false
+    });
+
+
+    // sort排序
     if (Object.keys(TIME_COMPARETOR).includes(sortFlag)) {
         result.sort(TIME_COMPARETOR[sortFlag as keyof typeof TIME_COMPARETOR]);
         if (sortReverse) {
@@ -904,6 +918,20 @@ server.tool(
             .describe(
                 '车次筛选条件，默认为空，即不筛选。支持多个标志同时筛选。例如用户说“高铁票”，则应使用 "G"。可选标志：[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'
             ),
+        earliestStartTime: z
+            .number()
+            .min(0)
+            .max(24)
+            .optional()
+            .default(0)
+            .describe('最早出发时间（0-24），默认为0。'),
+        latestStartTime: z
+            .number()
+            .min(0)
+            .max(24)
+            .optional()
+            .default(24)
+            .describe('最迟出发时间（0-24），默认为24。'),
         sortFlag: z
             .string()
             .optional()
@@ -930,6 +958,8 @@ server.tool(
         fromStation,
         toStation,
         trainFilterFlags,
+        earliestStartTime,
+        latestStartTime,
         sortFlag,
         sortReverse,
         limitedNum,
@@ -1001,6 +1031,8 @@ server.tool(
         const filteredTicketsInfo = filterTicketsInfo<TicketInfo>(
             ticketsInfo,
             trainFilterFlags,
+            earliestStartTime,
+            latestStartTime,
             sortFlag,
             sortReverse,
             limitedNum
@@ -1081,6 +1113,20 @@ server.tool(
             .describe(
                 '车次筛选条件，默认为空。从以下标志中选取多个条件组合[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'
             ),
+        earliestStartTime: z
+            .number()
+            .min(0)
+            .max(24)
+            .optional()
+            .default(0)
+            .describe('最早出发时间（0-24），默认为0。'),
+        latestStartTime: z
+            .number()
+            .min(0)
+            .max(24)
+            .optional()
+            .default(24)
+            .describe('最迟出发时间（0-24），默认为24。'),
         sortFlag: z
             .string()
             .optional()
@@ -1109,6 +1155,8 @@ server.tool(
         middleStation,
         showWZ,
         trainFilterFlags,
+        earliestStartTime,
+        latestStartTime,
         sortFlag,
         sortReverse,
         limitedNum,
@@ -1212,6 +1260,8 @@ server.tool(
         const filteredInterlineTicketsInfo = filterTicketsInfo<InterlineInfo>(
             interlineTicketsInfo,
             trainFilterFlags,
+            earliestStartTime,
+            latestStartTime,
             sortFlag,
             sortReverse,
             limitedNum

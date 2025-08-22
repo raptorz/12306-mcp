@@ -358,8 +358,9 @@ function formatTicketsInfo(ticketsInfo) {
     });
     return result;
 }
-function filterTicketsInfo(ticketsInfo, trainFilterFlags, sortFlag = '', sortReverse = false, limitedNum = 0) {
+function filterTicketsInfo(ticketsInfo, trainFilterFlags, earliestStartTime = 0, latestStartTime = 24, sortFlag = '', sortReverse = false, limitedNum = 0) {
     let result;
+    // FilterFlags过滤 
     if (trainFilterFlags.length === 0) {
         result = ticketsInfo;
     }
@@ -374,6 +375,15 @@ function filterTicketsInfo(ticketsInfo, trainFilterFlags, sortFlag = '', sortRev
             }
         }
     }
+    // startTime 过滤
+    result = result.filter(ticketInfo => {
+        const startTimeHour = parseInt(ticketInfo.start_time.split(':')[0], 10);
+        if (startTimeHour >= earliestStartTime && startTimeHour < latestStartTime) {
+            return true;
+        }
+        return false;
+    });
+    // sort排序
     if (Object.keys(TIME_COMPARETOR).includes(sortFlag)) {
         result.sort(TIME_COMPARETOR[sortFlag]);
         if (sortReverse) {
@@ -711,6 +721,20 @@ server.tool('get-tickets', '查询12306余票信息。', {
         .optional()
         .default('')
         .describe('车次筛选条件，默认为空，即不筛选。支持多个标志同时筛选。例如用户说“高铁票”，则应使用 "G"。可选标志：[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'),
+    earliestStartTime: z
+        .number()
+        .min(0)
+        .max(24)
+        .optional()
+        .default(0)
+        .describe('最早出发时间（0-24），默认为0。'),
+    latestStartTime: z
+        .number()
+        .min(0)
+        .max(24)
+        .optional()
+        .default(24)
+        .describe('最迟出发时间（0-24），默认为24。'),
     sortFlag: z
         .string()
         .optional()
@@ -727,7 +751,7 @@ server.tool('get-tickets', '查询12306余票信息。', {
         .optional()
         .default(0)
         .describe('返回的余票数量限制，默认为0，即不限制。'),
-}, async ({ date, fromStation, toStation, trainFilterFlags, sortFlag, sortReverse, limitedNum, }) => {
+}, async ({ date, fromStation, toStation, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum, }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
         return {
@@ -787,7 +811,7 @@ server.tool('get-tickets', '查询12306余票信息。', {
             ],
         };
     }
-    const filteredTicketsInfo = filterTicketsInfo(ticketsInfo, trainFilterFlags, sortFlag, sortReverse, limitedNum);
+    const filteredTicketsInfo = filterTicketsInfo(ticketsInfo, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum);
     return {
         content: [
             { type: 'text', text: formatTicketsInfo(filteredTicketsInfo) },
@@ -832,6 +856,20 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         .optional()
         .default('')
         .describe('车次筛选条件，默认为空。从以下标志中选取多个条件组合[G(高铁/城际),D(动车),Z(直达特快),T(特快),K(快速),O(其他),F(复兴号),S(智能动车组)]'),
+    earliestStartTime: z
+        .number()
+        .min(0)
+        .max(24)
+        .optional()
+        .default(0)
+        .describe('最早出发时间（0-24），默认为0。'),
+    latestStartTime: z
+        .number()
+        .min(0)
+        .max(24)
+        .optional()
+        .default(24)
+        .describe('最迟出发时间（0-24），默认为24。'),
     sortFlag: z
         .string()
         .optional()
@@ -848,7 +886,7 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
         .optional()
         .default(10)
         .describe('返回的中转余票数量限制，默认为10。'),
-}, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, sortFlag, sortReverse, limitedNum, }) => {
+}, async ({ date, fromStation, toStation, middleStation, showWZ, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum, }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
         return {
@@ -935,7 +973,7 @@ server.tool('get-interline-tickets', '查询12306中转余票信息。尚且只�
             ],
         };
     }
-    const filteredInterlineTicketsInfo = filterTicketsInfo(interlineTicketsInfo, trainFilterFlags, sortFlag, sortReverse, limitedNum);
+    const filteredInterlineTicketsInfo = filterTicketsInfo(interlineTicketsInfo, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum);
     return {
         content: [
             {
