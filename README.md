@@ -43,9 +43,14 @@ npm i
 
 ## <div align="center">▶️Quick Start</div>
 
-### CLI
+### CLI-stdio
 ~~~bash
 npx -y 12306-mcp
+~~~
+
+### CLI-http
+~~~bash
+npx -y 12306-mcp --port [端口号]
 ~~~
 
 ### MCP sever configuration
