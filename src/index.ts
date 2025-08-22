@@ -23,7 +23,7 @@ import {
     TicketInfo,
 } from './types.js';
 
-const VERSION = '0.3.4';
+const VERSION = '0.3.5';
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
 const LCQUERY_INIT_URL = 'https://kyfw.12306.cn/otn/lcQuery/init';
@@ -430,6 +430,27 @@ function formatTicketsInfo(ticketsInfo: TicketInfo[]): string {
     return result;
 }
 
+function formatTicketsInfoCSV(ticketsInfo: TicketInfo[]): string {
+    if (ticketsInfo.length === 0) {
+        return '没有查询到相关车次信息';
+    }
+    let result =
+        '车次,实际车次train_no,出发站,到达站,出发时间,到达时间,历时,票价,特色标签\n';
+    ticketsInfo.forEach((ticketInfo) => {
+        let infoStr = '';
+        infoStr += `${ticketInfo.start_train_code},${ticketInfo.train_no},${ticketInfo.from_station}(telecode:${ticketInfo.from_station_telecode}),${ticketInfo.to_station}(telecode: ${ticketInfo.to_station_telecode}),${ticketInfo.start_time},${ticketInfo.arrive_time},${ticketInfo.lishi},[`;
+        ticketInfo.prices.forEach((price) => {
+            const ticketStatus = formatTicketStatus(price.num);
+            infoStr += `${price.seat_name}: ${ticketStatus}${price.price}元,`;
+        });
+        infoStr += `],${
+            ticketInfo.dw_flag.length == 0 ? '/' : ticketInfo.dw_flag.join('&')
+        }`;
+        result += `${infoStr}\n`;
+    });
+    return result;
+}
+
 function filterTicketsInfo<T extends TicketInfo | InterlineInfo>(
     ticketsInfo: T[],
     trainFilterFlags: string,
@@ -440,7 +461,7 @@ function filterTicketsInfo<T extends TicketInfo | InterlineInfo>(
     limitedNum: number = 0
 ): T[] {
     let result: T[];
-    // FilterFlags过滤 
+    // FilterFlags过滤
     if (trainFilterFlags.length === 0) {
         result = ticketsInfo;
     } else {
@@ -459,14 +480,16 @@ function filterTicketsInfo<T extends TicketInfo | InterlineInfo>(
         }
     }
     // startTime 过滤
-    result = result.filter(ticketInfo => {
+    result = result.filter((ticketInfo) => {
         const startTimeHour = parseInt(ticketInfo.start_time.split(':')[0], 10);
-        if(startTimeHour >= earliestStartTime && startTimeHour < latestStartTime){
-            return true
+        if (
+            startTimeHour >= earliestStartTime &&
+            startTimeHour < latestStartTime
+        ) {
+            return true;
         }
-        return false
+        return false;
     });
-
 
     // sort排序
     if (Object.keys(TIME_COMPARETOR).includes(sortFlag)) {
@@ -952,6 +975,11 @@ server.tool(
             .optional()
             .default(0)
             .describe('返回的余票数量限制，默认为0，即不限制。'),
+        csvFormat: z
+            .boolean()
+            .default(false)
+            .optional()
+            .describe('是否使用CSV格式返回。'),
     },
     async ({
         date,
@@ -963,6 +991,7 @@ server.tool(
         sortFlag,
         sortReverse,
         limitedNum,
+        csvFormat,
     }) => {
         // 检查日期是否早于当前日期
         if (!checkDate(date)) {
@@ -1039,7 +1068,12 @@ server.tool(
         );
         return {
             content: [
-                { type: 'text', text: formatTicketsInfo(filteredTicketsInfo) },
+                {
+                    type: 'text',
+                    text: csvFormat
+                        ? formatTicketsInfoCSV(filteredTicketsInfo)
+                        : formatTicketsInfo(filteredTicketsInfo),
+                },
             ],
         };
     }

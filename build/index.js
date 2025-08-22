@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { format, parse } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { StationDataKeys, TicketDataKeys, } from './types.js';
-const VERSION = '0.3.4';
+const VERSION = '0.3.5';
 const API_BASE = 'https://kyfw.12306.cn';
 const WEB_URL = 'https://www.12306.cn/index/';
 const LCQUERY_INIT_URL = 'https://kyfw.12306.cn/otn/lcQuery/init';
@@ -358,9 +358,26 @@ function formatTicketsInfo(ticketsInfo) {
     });
     return result;
 }
+function formatTicketsInfoCSV(ticketsInfo) {
+    if (ticketsInfo.length === 0) {
+        return '没有查询到相关车次信息';
+    }
+    let result = '车次,实际车次train_no,出发站,到达站,出发时间,到达时间,历时,票价,特色标签\n';
+    ticketsInfo.forEach((ticketInfo) => {
+        let infoStr = '';
+        infoStr += `${ticketInfo.start_train_code},${ticketInfo.train_no},${ticketInfo.from_station}(telecode:${ticketInfo.from_station_telecode}),${ticketInfo.to_station}(telecode: ${ticketInfo.to_station_telecode}),${ticketInfo.start_time},${ticketInfo.arrive_time},${ticketInfo.lishi},[`;
+        ticketInfo.prices.forEach((price) => {
+            const ticketStatus = formatTicketStatus(price.num);
+            infoStr += `${price.seat_name}: ${ticketStatus}${price.price}元,`;
+        });
+        infoStr += `],${ticketInfo.dw_flag.length == 0 ? '/' : ticketInfo.dw_flag.join('&')}`;
+        result += `${infoStr}\n`;
+    });
+    return result;
+}
 function filterTicketsInfo(ticketsInfo, trainFilterFlags, earliestStartTime = 0, latestStartTime = 24, sortFlag = '', sortReverse = false, limitedNum = 0) {
     let result;
-    // FilterFlags过滤 
+    // FilterFlags过滤
     if (trainFilterFlags.length === 0) {
         result = ticketsInfo;
     }
@@ -376,9 +393,10 @@ function filterTicketsInfo(ticketsInfo, trainFilterFlags, earliestStartTime = 0,
         }
     }
     // startTime 过滤
-    result = result.filter(ticketInfo => {
+    result = result.filter((ticketInfo) => {
         const startTimeHour = parseInt(ticketInfo.start_time.split(':')[0], 10);
-        if (startTimeHour >= earliestStartTime && startTimeHour < latestStartTime) {
+        if (startTimeHour >= earliestStartTime &&
+            startTimeHour < latestStartTime) {
             return true;
         }
         return false;
@@ -751,7 +769,12 @@ server.tool('get-tickets', '查询12306余票信息。', {
         .optional()
         .default(0)
         .describe('返回的余票数量限制，默认为0，即不限制。'),
-}, async ({ date, fromStation, toStation, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum, }) => {
+    csvFormat: z
+        .boolean()
+        .default(false)
+        .optional()
+        .describe('是否使用CSV格式返回。'),
+}, async ({ date, fromStation, toStation, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum, csvFormat, }) => {
     // 检查日期是否早于当前日期
     if (!checkDate(date)) {
         return {
@@ -814,7 +837,12 @@ server.tool('get-tickets', '查询12306余票信息。', {
     const filteredTicketsInfo = filterTicketsInfo(ticketsInfo, trainFilterFlags, earliestStartTime, latestStartTime, sortFlag, sortReverse, limitedNum);
     return {
         content: [
-            { type: 'text', text: formatTicketsInfo(filteredTicketsInfo) },
+            {
+                type: 'text',
+                text: csvFormat
+                    ? formatTicketsInfoCSV(filteredTicketsInfo)
+                    : formatTicketsInfo(filteredTicketsInfo),
+            },
         ],
     };
 });
